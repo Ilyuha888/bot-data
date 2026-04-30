@@ -1,0 +1,2 @@
+# Never commit sessions — contains conversation history
+sessions.json

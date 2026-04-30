@@ -1,0 +1,28 @@
+{
+  "schedules": [
+    {
+      "id": "daily-focus",
+      "cron": "0 9 * * *",
+      "tz": "Europe/Moscow",
+      "prompt_key": "daily_focus",
+      "last_fired": null,
+      "one_shot": false
+    },
+    {
+      "id": "weekly-curator",
+      "cron": "0 20 * * 0",
+      "tz": "Europe/Moscow",
+      "prompt_key": "weekly_curator",
+      "last_fired": null,
+      "one_shot": false
+    },
+    {
+      "id": "monthly-audit",
+      "cron": "0 10 1 * *",
+      "tz": "Europe/Moscow",
+      "prompt_key": "monthly_audit",
+      "last_fired": null,
+      "one_shot": false
+    }
+  ]
+}
