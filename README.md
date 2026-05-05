@@ -1,43 +1,133 @@
-# bot-data
+# bot-data — Runtime State for Claude Telegram Bot
 
-Runtime state for the Claude Telegram Bot. This repo holds the three JSON files the bot reads and writes at runtime.
+This repo holds the runtime state of the [Claude Telegram Bot](https://github.com/Ilyuha888/claude-telegram-bot): scheduler registry, notification history, chat session history, and audit log. It's deliberately a **separate repo** from the bot code so:
 
-## Files
+- State persists independently of bot upgrades — pull a new bot version, your schedules and reminders survive
+- You can back it up or rotate it without touching code
+- The bot never auto-pushes secrets here (only structural state — see "What's tracked vs gitignored")
 
-### schedules.json
+This repo ships with **placeholder schedules and zero personal content**. Clone it, point the bot at it, and the bot starts reading and writing here on first message.
 
-Scheduler registry. The bot reads this on startup and via `fs.watch` for live updates.
+---
+
+## Setup
+
+Point the bot at this directory in your `.env`:
+
+```bash
+BOT_DATA_DIR=/path/to/your/bot-data
+```
+
+Default if not set: `~/bot-data`. The Docker setup bind-mounts `${BOT_DATA_DIR}` into the container at `/data/bot-data`.
+
+---
+
+## What's in this repo
+
+### Tracked (committed, ships with the scaffold)
+
+| File | Purpose |
+|---|---|
+| `schedules.json` | Scheduler registry — cron schedules + one-shot reminders |
+| `notifications.json` | Delivered notification history — capped at 200 rows |
+
+### Gitignored (created at runtime, never committed)
+
+| File | Purpose |
+|---|---|
+| `chat-session-history.json` | Last 5 chat sessions (Mode 1) — used by `/resume` and auto-resume after restart |
+| `sessions.json` | Mode 2 remote-control work sessions (`/work`, `/sessions`, `/attach`, `/close`) |
+| `audit.log` | Append-only audit log — every tool invocation, permission grant, denied request |
+
+The bot creates the gitignored files on first use. They're gitignored because:
+
+- `chat-session-history.json` and `sessions.json` contain conversation context
+- `audit.log` contains tool inputs (some of which include text from your messages)
+
+You should still **back this repo up** privately (e.g., to a private remote) — the gitignored files matter for continuity even if they don't ship.
+
+---
+
+## File schemas
+
+### `schedules.json`
+
+```json
+{
+  "schedules": [
+    {
+      "id": "daily-focus",
+      "cron": "0 9 * * *",
+      "tz": "Europe/Moscow",
+      "prompt_key": "daily_focus",
+      "last_fired": null,
+      "one_shot": false
+    }
+  ]
+}
+```
 
 | Field | Description |
 |---|---|
 | `id` | Unique schedule identifier |
-| `cron` | Cron expression (uses `node-cron` syntax) |
-| `tz` | Timezone for the cron schedule |
-| `prompt_key` | Key into the PROMPTS record in `scheduler-prompts.ts` |
-| `last_fired` | ISO timestamp of last fire (or `null`). Used for boot catch-up. |
-| `one_shot` | If `true`, the entry is deleted after firing. Used for scribe reminders. |
+| `cron` | 5-field cron expression (`node-cron` syntax) |
+| `tz` | IANA timezone for the cron schedule |
+| `prompt_key` | Key into the PROMPTS record in the bot's `scheduler-prompts.ts` (or override file in your vault's `prompts/scheduler/`) |
+| `last_fired` | ISO timestamp of last fire (or `null`). Used by boot catch-up logic. |
+| `one_shot` | If `true`, the entry is deleted after firing. Used for `/scribe` reminders. |
+| `payload` | (one_shot only) — `{reminder_message, note_path}` for scribe reminders |
 
-### notifications.json
+### `notifications.json`
 
-Delivered notification history. Capped at 200 rows. Do not edit manually.
-
-### sessions.json
-
-**Never committed.** Contains active conversation history — gitignored. Created automatically by the bot.
-
-## Setup
-
-Point the bot at this directory with `BOT_DATA_DIR` in your `.env`:
-
+```json
+{
+  "notifications": [
+    {
+      "id": "uuid",
+      "fired_at": "ISO timestamp",
+      "prompt_key": "daily_focus",
+      "title": "Daily focus",
+      "content": "...",
+      "telegram_message_id": 12345,
+      "status": "delivered"
+    }
+  ]
+}
 ```
-BOT_DATA_DIR=/path/to/your/bot-data
-```
 
-Default if not set: `~/bot-data`.
+Capped at 200 rows. Do not hand-edit — the bot writes this; manual changes risk being overwritten.
+
+---
 
 ## Customizing schedules
 
-Edit `schedules.json` — the bot picks up changes without restart via `fs.watch`.
+Edit `schedules.json` directly. The bot watches the file via `fs.watch` and picks up changes without restart.
 
-To disable a routine, remove its entry. To change the time, update the `cron` field.
-Cron syntax: `minute hour day month weekday` (standard 5-field).
+**Common edits:**
+
+- Change time: edit the `cron` field (5-field syntax: `min hour day month weekday`)
+- Change timezone: edit `tz` to your IANA zone (e.g., `America/New_York`, `Europe/Berlin`)
+- Disable a routine: remove its entry
+- Add a new routine: append an entry with a `prompt_key` matching one in the bot's PROMPTS record (or a vault override in `prompts/scheduler/<key>.md`)
+
+**Don't:** add a `one_shot: true` entry by hand — those are managed by the `/scribe` skill which writes them with the right schema (including `payload.note_path` for the [Log outcome] callback).
+
+---
+
+## Backup
+
+The simplest backup: push to a private GitHub repo of your own. The scaffold ships with no credentials and no real reminders, so the public repo is safe; your fork after using the bot will have personal state and should stay private.
+
+```bash
+cd ~/repos/bot-data
+git remote set-url origin git@github.com:YOUR-USERNAME/bot-data-personal.git
+git push -u origin main
+```
+
+The bot's auto-push (configured in your vault's `CLAUDE.md`) will keep this remote in sync after every state change.
+
+---
+
+## License
+
+MIT — paired with the bot's [LICENSE](https://github.com/Ilyuha888/claude-telegram-bot/blob/main/LICENSE).
