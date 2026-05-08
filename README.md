@@ -60,8 +60,18 @@ You should still **back this repo up** privately (e.g., to a private remote) —
       "cron": "0 9 * * *",
       "tz": "Europe/Moscow",
       "prompt_key": "daily_focus",
-      "last_fired": null,
+      "last_fired": "2026-05-08T08:14:03.437Z",
       "one_shot": false
+    },
+    {
+      "id": "remind-abc12345",
+      "cron": "",
+      "tz": "Europe/Moscow",
+      "prompt_key": "scribe_reminder",
+      "last_fired": null,
+      "fire_at": "2026-05-09T15:00:00.000Z",
+      "one_shot": true,
+      "payload": { "reminder_message": "follow up", "note_path": "inbox/2026-05-08-follow-up.md" }
     }
   ]
 }
@@ -70,12 +80,15 @@ You should still **back this repo up** privately (e.g., to a private remote) —
 | Field | Description |
 |---|---|
 | `id` | Unique schedule identifier |
-| `cron` | 5-field cron expression (`node-cron` syntax) |
+| `cron` | 5-field cron expression (`node-cron` syntax). Empty string for one-shots. |
 | `tz` | IANA timezone for the cron schedule |
 | `prompt_key` | Key into the PROMPTS record in the bot's `scheduler-prompts.ts` (or override file in your vault's `prompts/scheduler/`) |
-| `last_fired` | ISO timestamp of last fire (or `null`). Used by boot catch-up logic. |
+| `last_fired` | ISO timestamp of the **cron** schedule's last fire (or `null`). Used by boot catch-up logic. **Unused for one-shots — keep `null`.** |
+| `fire_at` | ISO timestamp of when a **one-shot** should fire. Required for one-shots; unused for cron schedules. |
 | `one_shot` | If `true`, the entry is deleted after firing. Used for `/scribe` reminders. |
 | `payload` | (one_shot only) — `{reminder_message, note_path}` for scribe reminders |
+
+> **Schema migration.** Older one-shot rows stored their fire-at timestamp in `last_fired`. The bot migrates them on load (`last_fired → fire_at`, then `last_fired = null`) and persists the rewrite. No manual action required.
 
 ### `notifications.json`
 
